@@ -11,7 +11,7 @@ import kotlinx.serialization.protobuf.ProtoBuf
 import net.minecraft.network.RegistryFriendlyByteBuf
 import net.minecraft.network.codec.StreamCodec
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload
-import net.minecraft.resources.ResourceLocation
+import net.minecraft.resources.Identifier
 import net.minecraft.server.level.ServerPlayer
 import org.apache.logging.log4j.LogManager
 import java.io.ByteArrayInputStream
@@ -20,15 +20,15 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 @OptIn(ExperimentalSerializationApi::class)
-class BetterChannel(val id: ResourceLocation) {
+class BetterChannel(val id: Identifier) {
     companion object {
         val LOGGER = LogManager.getLogger("ObservableNet")
     }
 
-    val s2cLocation: ResourceLocation = id.withSuffix("-s2c")
-    val c2sLocation: ResourceLocation = id.withSuffix("-c2s")
+    val s2cLocation: Identifier = id.withSuffix("-s2c")
+    val c2sLocation: Identifier = id.withSuffix("-c2s")
 
-    class SerializedPayload(val className: String, val data: ByteArray, val location: ResourceLocation) : CustomPacketPayload {
+    class SerializedPayload(val className: String, val data: ByteArray, val location: Identifier) : CustomPacketPayload {
         override fun type() = CustomPacketPayload.Type<CustomPacketPayload>(location)
     }
     inline fun <reified T> createPayload(data: T, side: Side) = SerializedPayload(T::class.java.name, ProtoBuf.encodeToByteArray(data), if (side == Side.S2C) s2cLocation else c2sLocation)

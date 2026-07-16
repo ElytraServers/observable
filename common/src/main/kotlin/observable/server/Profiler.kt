@@ -96,7 +96,7 @@ class Profiler {
         blockTimingsMap.clear()
         serverTraceMap = TraceMap()
         startTime = System.currentTimeMillis()
-        synchronized(Props.notProcessing) {
+        synchronized(Props.notProcessingLock) {
             notProcessing = false
             startingTicks = GameInstance.getServer()!!.tickCount
         }
@@ -165,7 +165,7 @@ class Profiler {
     fun stopRunning() {
         val diagnostics = getDiagnostics()
         val ticks: Int
-        synchronized(Props.notProcessing) {
+        synchronized(Props.notProcessingLock) {
             notProcessing = true
             ticks = GameInstance.getServer()!!.tickCount - startingTicks
         }

@@ -13,7 +13,7 @@ import kotlinx.serialization.json.*
 import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.resources.ResourceKey
-import net.minecraft.resources.ResourceLocation
+import net.minecraft.resources.Identifier
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.Level
 import observable.net.*
@@ -27,8 +27,8 @@ fun getPosition(obj: Any?): BlockPos =
 
 @Serializable
 data class ProfilingData(
-    val entities: Map<ResourceLocation, List<Entry>>,
-    val blocks: Map<ResourceLocation, List<Entry>>,
+    val entities: Map<Identifier, List<Entry>>,
+    val blocks: Map<Identifier, List<Entry>>,
     val traces: SerializedTraceMap?,
     val ticks: Int
 ) {
@@ -42,7 +42,7 @@ data class ProfilingData(
             val entityEntries =
                 entities
                     .asIterable()
-                    .groupBy { it.key.level().dimension().location() }
+                    .groupBy { it.key.level().dimension().identifier() }
                     .mapValues { (_, entries) ->
                         entries.map { (entity, data) ->
                             Entry(entity, BuiltInRegistries.ENTITY_TYPE.getKey(entity.type).toString(), data)
@@ -52,7 +52,7 @@ data class ProfilingData(
             val blockEntries =
                 blocks
                     .map { (level, posMap) ->
-                        level.location() to posMap.map { (pos, data) -> Entry(pos, data.name, data) }
+                        level.identifier() to posMap.map { (pos, data) -> Entry(pos, data.name, data) }
                     }
                     .toMap()
 

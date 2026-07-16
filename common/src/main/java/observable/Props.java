@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class Props {
     public static boolean notProcessing = true;
+    public static Object notProcessingLock = new Object();
 
     public static AtomicReference<Profiler.TimingData> currentTarget = new AtomicReference<>(null);
 

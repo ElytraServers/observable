@@ -1,14 +1,14 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "7.1.1"
+    id "com.gradleup.shadow" version "9.5.1"
     id 'org.jetbrains.kotlin.jvm'
     id 'org.jetbrains.kotlin.plugin.serialization'
 }
 dependencies {
     // We depend on fabric loader here to use the fabric @Environment annotations and get the mixin dependencies
     // Do NOT use other classes from fabric loader
-    modImplementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
+    implementation "net.fabricmc:fabric-loader:${rootProject.fabric_loader_version}"
     // Remove the next line if you don't want to depend on the API
-    modApi "dev.architectury:architectury:${rootProject.architectury_version}"
+    api "dev.architectury:architectury:${rootProject.architectury_version}"
 }
 
 architectury {
@@ -24,10 +24,6 @@ publishing {
         mavenCommon(MavenPublication) {
             artifactId = rootProject.archives_base_name
             // add all the jars that should be included when publishing to maven
-            artifact remapJar
-            artifact(sourcesJar) {
-                builtBy remapSourcesJar
-            }
         }
     }
 
@@ -51,8 +47,8 @@ repositories {
     mavenCentral()
 }
 compileKotlin {
-    kotlinOptions.jvmTarget = "21"
+    kotlinOptions.jvmTarget = "25"
 }
 compileTestKotlin {
-    kotlinOptions.jvmTarget = "21"
+    kotlinOptions.jvmTarget = "25"
 }

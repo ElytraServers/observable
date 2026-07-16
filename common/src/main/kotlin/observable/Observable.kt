@@ -1,5 +1,6 @@
 package observable
 
+import com.mojang.authlib.minecraft.client.MinecraftClient
 import com.mojang.blaze3d.platform.InputConstants
 import dev.architectury.event.events.client.ClientLifecycleEvent
 import dev.architectury.event.events.client.ClientPlayerEvent
@@ -10,10 +11,12 @@ import dev.architectury.registry.client.keymappings.KeyMappingRegistry
 import dev.architectury.utils.GameInstance
 import net.minecraft.ChatFormatting
 import net.minecraft.client.KeyMapping
+import net.minecraft.client.Minecraft
 import net.minecraft.network.chat.ClickEvent
 import net.minecraft.network.chat.Component
-import net.minecraft.resources.ResourceLocation
+import net.minecraft.resources.Identifier
 import net.minecraft.server.level.ServerPlayer
+import net.minecraft.server.players.NameAndId
 import net.minecraft.world.entity.player.Player
 import observable.client.Overlay
 import observable.client.ProfileExporter
@@ -30,22 +33,25 @@ import observable.util.Marker
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 import org.lwjgl.glfw.GLFW
+import java.net.URI
 
 object Observable {
     const val MOD_ID = "observable"
+
+    val KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("observable", "key"))
 
     val PROFILE_KEYBIND by lazy {
         KeyMapping(
             "key.observable.profile",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_UNKNOWN,
-            "category.observable.keybinds"
+            KEYBIND_CATEGORY,
         )
     }
 
-    private val CLIENT_CHAT get() = GameInstance.getClient().gui.chat
+    private val CLIENT_CHAT get() = Minecraft.getInstance().gui.chat
 
-    val CHANNEL = BetterChannel(ResourceLocation.fromNamespaceAndPath("observable", "channel"))
+    val CHANNEL = BetterChannel(Identifier.fromNamespaceAndPath("observable", "channel"))
     val LOGGER: Logger = LogManager.getLogger("Observable")
     val PROFILER: Profiler by lazy { Profiler() }
     var RESULTS: ProfilingData? = null
@@ -54,7 +60,7 @@ object Observable {
     fun hasPermission(player: Player): Boolean {
         if (ServerSettings.allPlayersAllowed) return true
         if (ServerSettings.allowedPlayers.contains(player.gameProfile.id.toString())) return true
-        if (GameInstance.getServer()?.playerList?.isOp(player.gameProfile) != false) return true
+        if (GameInstance.getServer()?.playerList?.isOp(NameAndId(player.gameProfile)) != false) return true
         return GameInstance.getServer()?.isSingleplayer ?: false
     }
 
@@ -109,16 +115,16 @@ object Observable {
 
             if (t.link != null) {
                 val linkText = Component.literal(t.link).withStyle(ChatFormatting.UNDERLINE).withStyle {
-                    it.withClickEvent(ClickEvent(ClickEvent.Action.OPEN_URL, t.link))
+                    it.withClickEvent(ClickEvent.OpenUrl(URI(t.link)))
                 }
                 val msg = Component.translatable("text.observable.profile_uploaded", linkText)
-                CLIENT_CHAT.addMessage(msg)
+                CLIENT_CHAT.addClientSystemMessage(msg)
             } else {
-                CLIENT_CHAT.addMessage(Component.translatable("text.observable.upload_failed"))
-                CLIENT_CHAT.addMessage(
+                CLIENT_CHAT.addClientSystemMessage(Component.translatable("text.observable.upload_failed"))
+                CLIENT_CHAT.addClientSystemMessage(
                     Component.translatable("text.observable.profile_saved", ProfileExporter.export(t.data))
                 )
-                CLIENT_CHAT.addMessage(Component.translatable("text.observable.after_save", MOD_URL_COMPONENT))
+                CLIENT_CHAT.addClientSystemMessage(Component.translatable("text.observable.after_save", MOD_URL_COMPONENT))
             }
         }
 
@@ -159,7 +165,7 @@ object Observable {
         ClientLifecycleEvent.CLIENT_LEVEL_LOAD.register { level ->
             Overlay.loadSync(level)
             Marker("observable_announce").mark {
-                CLIENT_CHAT.addMessage(
+                CLIENT_CHAT.addClientSystemMessage(
                     Component.translatable(
                         "text.observable.announce",
                         MOD_URL_COMPONENT
