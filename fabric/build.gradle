@@ -1,5 +1,5 @@
 plugins {
-    id "com.github.johnrengelman.shadow" version "8.1.1"
+    id "com.gradleup.shadow" version "9.5.1"
     id 'org.jetbrains.kotlin.jvm'
     id "me.shedaniel.unified-publishing"
 }
@@ -59,10 +59,10 @@ processResources {
 
 shadowJar {
     dependsOn jar
-    mainSpec.sourcePaths.clear()
     from(zipTree(jar.archiveFile))
     configurations = [project.configurations.shadowCommon]
     archiveClassifier = null
+    zip64 = true
 
     relocate 'kotlinx.serialization.protobuf', 'observable.shadow.kotlinx.serialization.protobuf'
 }
@@ -145,8 +145,8 @@ repositories {
     mavenCentral()
 }
 compileKotlin {
-    kotlinOptions.jvmTarget = "21"
+    kotlinOptions.jvmTarget = "25"
 }
 compileTestKotlin {
-    kotlinOptions.jvmTarget = "21"
+    kotlinOptions.jvmTarget = "25"
 }

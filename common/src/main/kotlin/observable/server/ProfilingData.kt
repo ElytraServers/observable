@@ -12,8 +12,8 @@ import kotlinx.serialization.UseSerializers
 import kotlinx.serialization.json.*
 import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
-import net.minecraft.resources.ResourceKey
 import net.minecraft.resources.Identifier
+import net.minecraft.resources.ResourceKey
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.Level
 import observable.net.*

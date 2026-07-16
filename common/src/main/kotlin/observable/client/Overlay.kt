@@ -1,22 +1,20 @@
 package observable.client
 
-import com.mojang.blaze3d.platform.GlStateManager
-import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.vertex.*
 import net.minecraft.client.Camera
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.Font.DisplayMode
 import net.minecraft.client.multiplayer.ClientLevel
-import net.minecraft.client.renderer.GameRenderer
 import net.minecraft.client.renderer.MultiBufferSource
-import net.minecraft.client.renderer.RenderStateShard
-import net.minecraft.client.renderer.RenderType
+import net.minecraft.client.renderer.RenderPipelines
+import net.minecraft.client.renderer.rendertype.OutputTarget
+import net.minecraft.client.renderer.rendertype.RenderSetup
+import net.minecraft.client.renderer.rendertype.RenderType
 import net.minecraft.core.BlockPos
 import net.minecraft.world.level.ChunkPos
 import net.minecraft.world.phys.Vec3
 import observable.Observable
-import org.joml.Matrix4f
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -61,97 +59,25 @@ object Overlay {
     var blocks: List<Entry.BlockEntry> = ArrayList()
     var blockMap = mapOf<ChunkPos, List<Entry.BlockEntry>>()
     lateinit var loc: Vec3
-    var vertexBuf: VertexBuffer? = null
-    var vertexBufPosition: Vec3 = Vec3.ZERO
+    var meshData: MeshData? = null
+    var meshPosition: Vec3 = Vec3.ZERO
     var dataAvailable = false
 
     val DIST_FAC = 1.0 / (2 * 16.0.pow(2)).pow(.5)
 
     val font: Font by lazy { Minecraft.getInstance().font }
 
-    class OverlayRenderType(name: String, fmt: VertexFormat, mode: VertexFormat.Mode) :
-        RenderType(
-            name,
-            fmt,
-            VertexFormat.Mode.QUADS,
-            256,
-            false,
-            true,
-            {},
-            {}
-        ) {
-        companion object {
-            fun build(): RenderType {
-                val boolType = java.lang.Boolean.TYPE
-
-                // So here's the thing: for some reason, Minecraft decided to not allow
-                // any kind of external access to  create a custom RenderType outside
-                // the class. However, we need to make our own to have the block outlines
-                // visible through walls. We can't mixin an invoker either as the
-                // CompositeRenderType is private within RenderType.
-                // We can get around that using reflection, hence this monstrosity.
-                val parameterTypes =
-                    arrayOf(
-                        String::class.java,
-                        VertexFormat::class.java,
-                        VertexFormat.Mode::class.java,
-                        Integer.TYPE,
-                        boolType,
-                        boolType,
-                        RenderType.CompositeState::class.java
-                    )
-                val fn =
-                    RenderType::class
-                        .java
-                        .declaredMethods
-                        .filter { method -> method.parameterTypes.contentEquals(parameterTypes) }
-                        .first()
-                fn.isAccessible = true
-
-                return fn.invoke(
-                    null,
-                    "heat",
-                    DefaultVertexFormat.POSITION_COLOR,
-                    VertexFormat.Mode.QUADS,
-                    256,
-                    false,
-                    false,
-                    buildCompositeState()
-                ) as RenderType
-            }
-
-            private fun buildCompositeState(): CompositeState {
-                return RenderType.CompositeState.builder()
-                    .setShaderState(ShaderStateShard { GameRenderer.getPositionColorShader() })
-                    //                    .setTextureState(EmptyTextureStateShard({}, {}))
-                    .setDepthTestState(DepthTestStateShard("always", 519))
-                    .setTransparencyState(
-                        RenderStateShard.TransparencyStateShard(
-                            "src_to_one",
-                            {
-                                RenderSystem.enableBlend()
-                                RenderSystem.blendFunc(
-                                    GlStateManager.SourceFactor.SRC_ALPHA,
-                                    GlStateManager.DestFactor.ONE
-                                )
-                            }
-                        ) {
-                            RenderSystem.disableBlend()
-                            RenderSystem.defaultBlendFunc()
-                        }
-                    )
-                    .createCompositeState(true)
-            }
-        }
+    private val renderType: RenderType by lazy {
+        val setup = RenderSetup.builder(RenderPipelines.DEBUG_QUADS)
+            .setOutputTarget(OutputTarget.MAIN_TARGET)
+            .createRenderSetup()
+        RenderType.create("observable_overlay", setup)
     }
-
-    @Suppress("INACCESSIBLE_TYPE")
-    private val renderType: RenderType by lazy { OverlayRenderType.build() }
 
     fun load(lvl: ClientLevel? = null) {
         val data = Observable.RESULTS ?: return
         val level = lvl ?: Minecraft.getInstance().level ?: return
-        val levelLocation = level.dimension().location()
+        val levelLocation = level.dimension().identifier()
         val ticks = data.ticks
         val norm = ClientSettings.normalized
         entities =
@@ -176,41 +102,34 @@ object Overlay {
                 }
                 ?.filter { it.rate >= ClientSettings.minRate }
                 .orEmpty()
-        blockMap = blocks.groupBy { ChunkPos(it.pos) }
+        blockMap = blocks.groupBy { ChunkPos.containing(it.pos) }
 
         dataAvailable = true
     }
 
     inline fun loadSync(lvl: ClientLevel? = null) = synchronized(this) { this.load(lvl) }
 
-    fun render(poseStack: PoseStack, partialTicks: Float, projection: Matrix4f) {
+    fun render(poseStack: PoseStack, partialTicks: Float) {
         if (!enabled || Observable.RESULTS == null) return
 
         val camera = Minecraft.getInstance().gameRenderer.mainCamera
-        val bufSrc = Minecraft.getInstance().renderBuffers().bufferSource()
-
-        RenderSystem.disableDepthTest()
-        RenderSystem.enableBlend()
-        RenderSystem.blendFunc(
-            GlStateManager.SourceFactor.SRC_ALPHA,
-            GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA
-        )
+        val bufSrc = MinecraftHelper.getRenderBuffers(Minecraft.getInstance()).bufferSource()
 
         poseStack.pushPose()
 
-        if (dataAvailable || vertexBufPosition.distanceToSqr(camera.position) > 1_000_000) {
-            createVBO(camera)
+        if (dataAvailable || meshPosition.distanceToSqr(MinecraftHelper.getCameraPosition(camera)) > 1_000_000) {
+            createMesh(camera)
             dataAvailable = false
         }
 
         synchronized(this) {
-            val cpos = ChunkPos(Minecraft.getInstance().player!!.blockPosition())
+            val cpos = ChunkPos.containing(Minecraft.getInstance().player!!.blockPosition())
             val dist = (ClientSettings.maxBlockDist / 16).coerceAtLeast(2)
             for (x in (cpos.x - dist)..(cpos.x + dist)) {
                 for (y in (cpos.z - dist)..(cpos.z + dist)) {
                     blockMap[ChunkPos(x, y)]?.forEach { entry ->
                         val maxDist = ClientSettings.maxBlockDist * ClientSettings.maxBlockDist
-                        if (camera.blockPosition.distSqr(entry.pos) < maxDist) {
+                        if (MinecraftHelper.getCameraBlockPosition(camera).distSqr(entry.pos) < maxDist) {
                             drawBlock(entry, poseStack, camera, bufSrc)
                         }
                     }
@@ -224,46 +143,39 @@ object Overlay {
             }
 
             poseStack.mulPose(camera.rotation().invert())
-            vertexBufPosition.subtract(camera.position).apply {
-                poseStack.translate(x, y, z)
+            MinecraftHelper.getCameraPosition(camera).let { camPos ->
+                meshPosition.subtract(camPos).apply {
+                    poseStack.translate(x, y, z)
+                }
             }
 
-            vertexBuf?.let {
-                it.bind()
-                it.drawWithShader(
-                    poseStack.last().pose(),
-                    projection,
-                    GameRenderer.getPositionColorShader()!!
-                )
-                VertexBuffer.unbind()
+            meshData?.let {
+                renderType.draw(it)
             }
         }
 
         poseStack.popPose()
         bufSrc.endBatch()
-
-        // Cleanup
-        RenderSystem.enableDepthTest()
     }
 
-    fun createVBO(camera: Camera) {
-        Observable.LOGGER.info("Initializing VBO")
-        vertexBuf?.close()
-        val buf = BufferBuilder(ByteBufferBuilder(renderType.bufferSize() * blocks.size), renderType.mode(), renderType.format())
+    fun createMesh(camera: Camera) {
+        Observable.LOGGER.info("Initializing mesh")
+        meshData?.close()
+        val buf = BufferBuilder(
+            ByteBufferBuilder(renderType.bufferSize() * blocks.size),
+            renderType.mode(),
+            renderType.format()
+        )
 
         var stack = PoseStack()
 
-        for (entry in blocks.filter { block -> block.pos.distSqr(camera.blockPosition) < 1_440_000 }) {
+        for (entry in blocks.filter { block -> block.pos.distSqr(MinecraftHelper.getCameraBlockPosition(camera)) < 1_440_000 }) {
             drawBlockOutline(entry, stack, camera, buf)
         }
 
-        val rendered = buf.build() ?: return
-        val vbuf = VertexBuffer(VertexBuffer.Usage.DYNAMIC)
-        vbuf.bind()
-        vbuf.upload(rendered)
-        VertexBuffer.unbind()
-        vertexBuf = vbuf
-        vertexBufPosition = camera.position
+        val built = buf.build() ?: return
+        meshData = built
+        meshPosition = MinecraftHelper.getCameraPosition(camera)
         dataAvailable = false
     }
 
@@ -281,28 +193,30 @@ object Overlay {
         poseStack.pushPose()
         var text = "${(rate / 1000).roundToInt()} μs/t"
         val pos = entity.getPosition(partialTicks)
-        if (camera.position.distanceTo(pos) > ClientSettings.maxEntityDist) return
+        if (MinecraftHelper.getCameraPosition(camera).distanceTo(pos) > ClientSettings.maxEntityDist) return
         if (!entity.isAlive) {
             text += " [X]"
         }
 
-        pos.subtract(camera.position).apply {
-            poseStack.translate(x, y + entity.bbHeight + 0.33, z)
-            poseStack.mulPose(camera.rotation())
-            poseStack.scale(0.025F, -0.025F, 0.025F)
-            font.drawInBatch(
-                text,
-                -font.width(text).toFloat() / 2,
-                0F,
-                entry.color.hex,
-                false,
-                poseStack.last().pose(),
-                bufSrc,
-                DisplayMode.SEE_THROUGH,
-                0,
-                0xF000F0
-            )
-        }
+        poseStack.translate(
+            pos.x - MinecraftHelper.getCameraPosition(camera).x,
+            pos.y + entity.bbHeight + 0.33 - MinecraftHelper.getCameraPosition(camera).y,
+            pos.z - MinecraftHelper.getCameraPosition(camera).z
+        )
+        poseStack.mulPose(camera.rotation())
+        poseStack.scale(0.025F, -0.025F, 0.025F)
+        font.drawInBatch(
+            text,
+            -font.width(text).toFloat() / 2,
+            0F,
+            entry.color.hex,
+            false,
+            poseStack.last().pose(),
+            bufSrc,
+            DisplayMode.SEE_THROUGH,
+            0,
+            0xF000F0
+        )
 
         poseStack.popPose()
     }
@@ -315,7 +229,7 @@ object Overlay {
     ) {
         poseStack.pushPose()
 
-        Vec3.atLowerCornerOf(entry.pos).subtract(camera.position).apply { poseStack.translate(x, y, z) }
+        Vec3.atLowerCornerOf(entry.pos).subtract(MinecraftHelper.getCameraPosition(camera)).apply { poseStack.translate(x, y, z) }
         val mat = poseStack.last().pose()
         entry.color.apply {
             buf.addVertex(mat, 0F, 1F, 0F).setColor(r, g, b, a)
@@ -364,7 +278,7 @@ object Overlay {
         val text = "${(rate / 1000).roundToInt()} μs/t"
 
         val col: Int = -0x1
-        Vec3.atCenterOf(pos).subtract(camera.position).apply {
+        Vec3.atCenterOf(pos).subtract(MinecraftHelper.getCameraPosition(camera)).apply {
             poseStack.translate(x, y, z)
             poseStack.mulPose(camera.rotation())
             poseStack.scale(0.025F, -0.025F, 0.025F)

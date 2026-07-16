@@ -42,6 +42,9 @@ publishing {
 //    }
 //    relocate 'kotlinx.serialization.protobuf', 'observable.shadow.kotlinx.serialization.protobuf'
 //}
+shadowJar {
+    zip64 = true
+}
 
 repositories {
     mavenCentral()

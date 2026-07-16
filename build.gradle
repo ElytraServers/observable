@@ -51,6 +51,12 @@ subprojects {
         implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:$kotlin_serialization_version"
     }
 
+//    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+//        kotlinOptions {
+//            jvmTarget = "25"
+//        }
+//    }
+
 }
 
 allprojects {
@@ -97,11 +103,11 @@ dependencies {
 }
 compileKotlin {
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "25"
     }
 }
 compileTestKotlin {
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "25"
     }
 }

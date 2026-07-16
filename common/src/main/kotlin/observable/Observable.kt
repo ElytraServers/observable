@@ -1,6 +1,5 @@
 package observable
 
-import com.mojang.authlib.minecraft.client.MinecraftClient
 import com.mojang.blaze3d.platform.InputConstants
 import dev.architectury.event.events.client.ClientLifecycleEvent
 import dev.architectury.event.events.client.ClientPlayerEvent
@@ -45,7 +44,7 @@ object Observable {
             "key.observable.profile",
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_UNKNOWN,
-            KEYBIND_CATEGORY,
+            KEYBIND_CATEGORY
         )
     }
 
