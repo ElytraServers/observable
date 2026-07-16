@@ -59,9 +59,7 @@ object Overlay {
     var blocks: List<Entry.BlockEntry> = ArrayList()
     var blockMap = mapOf<ChunkPos, List<Entry.BlockEntry>>()
     lateinit var loc: Vec3
-    var meshData: MeshData? = null
     var meshPosition: Vec3 = Vec3.ZERO
-    var dataAvailable = false
 
     val DIST_FAC = 1.0 / (2 * 16.0.pow(2)).pow(.5)
 
@@ -103,8 +101,6 @@ object Overlay {
                 ?.filter { it.rate >= ClientSettings.minRate }
                 .orEmpty()
         blockMap = blocks.groupBy { ChunkPos.containing(it.pos) }
-
-        dataAvailable = true
     }
 
     inline fun loadSync(lvl: ClientLevel? = null) = synchronized(this) { this.load(lvl) }
@@ -116,11 +112,6 @@ object Overlay {
         val bufSrc = MinecraftHelper.getRenderBuffers(Minecraft.getInstance()).bufferSource()
 
         poseStack.pushPose()
-
-        if (dataAvailable || meshPosition.distanceToSqr(MinecraftHelper.getCameraPosition(camera)) > 1_000_000) {
-            createMesh(camera)
-            dataAvailable = false
-        }
 
         synchronized(this) {
             val cpos = ChunkPos.containing(Minecraft.getInstance().player!!.blockPosition())
@@ -142,41 +133,45 @@ object Overlay {
                 drawEntity(entry, poseStack, partialTicks, camera, bufSrc)
             }
 
-            poseStack.mulPose(camera.rotation().invert())
-            MinecraftHelper.getCameraPosition(camera).let { camPos ->
-                meshPosition.subtract(camPos).apply {
-                    poseStack.translate(x, y, z)
-                }
+            // Build and draw block outline mesh — rebuilt every frame.
+            // ByteBufferBuilder must be closed AFTER MeshData because the Result
+            // backing the mesh holds a reference to the builder's native memory.
+            val camPos = MinecraftHelper.getCameraPosition(camera)
+            val nearbyBlocks = blocks.filter { block ->
+                block.pos.distSqr(MinecraftHelper.getCameraBlockPosition(camera)) < 1_440_000
             }
+            if (nearbyBlocks.isNotEmpty()) {
+                val builder = ByteBufferBuilder(renderType.bufferSize() * nearbyBlocks.size)
+                try {
+                    val buf = BufferBuilder(builder, renderType.mode(), renderType.format())
+                    val outlineStack = PoseStack()
 
-            meshData?.let {
-                renderType.draw(it)
+                    for (entry in nearbyBlocks) {
+                        drawBlockOutline(entry, outlineStack, camera, buf)
+                    }
+
+                    val mesh = buf.build()
+                    if (mesh != null) {
+                        try {
+                            poseStack.pushPose()
+                            poseStack.mulPose(camera.rotation().invert())
+                            meshPosition.subtract(camPos).apply {
+                                poseStack.translate(x, y, z)
+                            }
+                            renderType.draw(mesh)
+                            poseStack.popPose()
+                        } finally {
+                            mesh.close()
+                        }
+                    }
+                } finally {
+                    builder.close()
+                }
             }
         }
 
         poseStack.popPose()
         bufSrc.endBatch()
-    }
-
-    fun createMesh(camera: Camera) {
-        Observable.LOGGER.info("Initializing mesh")
-        meshData?.close()
-        val buf = BufferBuilder(
-            ByteBufferBuilder(renderType.bufferSize() * blocks.size),
-            renderType.mode(),
-            renderType.format()
-        )
-
-        var stack = PoseStack()
-
-        for (entry in blocks.filter { block -> block.pos.distSqr(MinecraftHelper.getCameraBlockPosition(camera)) < 1_440_000 }) {
-            drawBlockOutline(entry, stack, camera, buf)
-        }
-
-        val built = buf.build() ?: return
-        meshData = built
-        meshPosition = MinecraftHelper.getCameraPosition(camera)
-        dataAvailable = false
     }
 
     inline fun drawEntity(
@@ -190,10 +185,11 @@ object Overlay {
         val entity = entry.entity ?: return
         if (entity.isRemoved) return
 
-        poseStack.pushPose()
-        var text = "${(rate / 1000).roundToInt()} μs/t"
         val pos = entity.getPosition(partialTicks)
         if (MinecraftHelper.getCameraPosition(camera).distanceTo(pos) > ClientSettings.maxEntityDist) return
+
+        poseStack.pushPose()
+        var text = "${(rate / 1000).roundToInt()} μs/t"
         if (!entity.isAlive) {
             text += " [X]"
         }
@@ -229,7 +225,8 @@ object Overlay {
     ) {
         poseStack.pushPose()
 
-        Vec3.atLowerCornerOf(entry.pos).subtract(MinecraftHelper.getCameraPosition(camera)).apply { poseStack.translate(x, y, z) }
+        Vec3.atLowerCornerOf(entry.pos).subtract(MinecraftHelper.getCameraPosition(camera))
+            .apply { poseStack.translate(x, y, z) }
         val mat = poseStack.last().pose()
         entry.color.apply {
             buf.addVertex(mat, 0F, 1F, 0F).setColor(r, g, b, a)
