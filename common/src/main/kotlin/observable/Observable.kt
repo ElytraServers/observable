@@ -37,7 +37,7 @@ import java.net.URI
 object Observable {
     const val MOD_ID = "observable"
 
-    val KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("observable", "key"))
+    val KEYBIND_CATEGORY = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("observable", "keybinds"))
 
     val PROFILE_KEYBIND by lazy {
         KeyMapping(

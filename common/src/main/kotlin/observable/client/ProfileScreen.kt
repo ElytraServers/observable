@@ -182,7 +182,13 @@ class ProfileScreen : Screen(Component.translatable("screen.observable.profile")
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, a: Float) {
         super.extractRenderState(graphics, mouseX, mouseY, a)
 
-        graphics.centeredText(this.font, action.statusMsg, width / 2, startBtn!!.y - this.font.lineHeight - 4, 0xFFFFFF)
+        graphics.centeredText(
+            this.font,
+            action.statusMsg,
+            width / 2,
+            startBtn!!.y - this.font.lineHeight - 4,
+            0xFFFFFFFF.toInt(),
+        )
     }
 
     override fun mouseScrolled(d: Double, e: Double, f: Double, g: Double): Boolean {

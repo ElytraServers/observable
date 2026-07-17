@@ -80,7 +80,13 @@ class ClientSettingsGui : Screen(Component.translatable("screen.observable.clien
         super.extractRenderState(graphics, mouseX, mouseY, a)
 
         for ((field, entry) in fields.zip(this.children())) {
-            graphics.text(this.font, field, width / 4, (entry as AbstractWidget).y, 0xFFFFFF)
+            graphics.text(
+                this.font,
+                field,
+                width / 4,
+                (entry as AbstractWidget).y,
+                0xFFFFFFFF.toInt(),
+            )
         }
     }
 }

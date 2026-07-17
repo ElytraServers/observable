@@ -137,9 +137,14 @@ publishing {
 repositories {
     mavenCentral()
 }
-compileKotlin {
-    kotlinOptions.jvmTarget = "25"
+
+kotlin {
+    compilerOptions {
+        jvmTarget = "JVM_25"
+    }
 }
-compileTestKotlin {
-    kotlinOptions.jvmTarget = "25"
+
+tasks.compileKotlin {
+    // workaround to the problem where kotlin generated classes are not available and causes NoClassDefFoundError.
+    destinationDirectory = file("${project.buildDir}/classes/java/main")
 }
