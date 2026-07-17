@@ -187,7 +187,7 @@ class ProfileScreen : Screen(Component.translatable("screen.observable.profile")
             action.statusMsg,
             width / 2,
             startBtn!!.y - this.font.lineHeight - 4,
-            0xFFFFFFFF.toInt(),
+            0xFFFFFFFF.toInt()
         )
     }
 

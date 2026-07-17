@@ -141,8 +141,7 @@ object Overlay {
                 block.pos.distSqr(MinecraftHelper.getCameraBlockPosition(camera)) < 1_440_000
             }
             if (nearbyBlocks.isNotEmpty()) {
-                val builder = ByteBufferBuilder(renderType.bufferSize() * nearbyBlocks.size)
-                try {
+                ByteBufferBuilder(renderType.bufferSize() * nearbyBlocks.size).use { builder ->
                     val buf = BufferBuilder(builder, renderType.mode(), renderType.format())
                     val outlineStack = PoseStack()
 
@@ -150,22 +149,15 @@ object Overlay {
                         drawBlockOutline(entry, outlineStack, camera, buf)
                     }
 
-                    val mesh = buf.build()
-                    if (mesh != null) {
-                        try {
-                            poseStack.pushPose()
-                            poseStack.mulPose(camera.rotation().invert())
-                            meshPosition.subtract(camPos).apply {
-                                poseStack.translate(x, y, z)
-                            }
-                            renderType.draw(mesh)
-                            poseStack.popPose()
-                        } finally {
-                            mesh.close()
+                    buf.build()?.use { mesh ->
+                        poseStack.pushPose()
+                        poseStack.mulPose(camera.rotation().invert())
+                        meshPosition.subtract(camPos).apply {
+                            poseStack.translate(x, y, z)
                         }
+                        renderType.draw(mesh)
+                        poseStack.popPose()
                     }
-                } finally {
-                    builder.close()
                 }
             }
         }

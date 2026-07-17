@@ -19,7 +19,6 @@
   "mixins": ["observable.common.json"],
   "depends": {
     "fabricloader": ">=0.12.0",
-    "fabric": "*",
     "minecraft": ">=1.18.2",
     "architectury": ">=4.1.32"
   },

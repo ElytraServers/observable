@@ -85,7 +85,7 @@ class ClientSettingsGui : Screen(Component.translatable("screen.observable.clien
                 field,
                 width / 4,
                 (entry as AbstractWidget).y,
-                0xFFFFFFFF.toInt(),
+                0xFFFFFFFF.toInt()
             )
         }
     }
