@@ -23,6 +23,6 @@ public class ObservableForge {
 
     public void onClientInit() {
         Observable.clientInit();
-        NeoForge.EVENT_BUS.register(ForgeClientHooks.INSTANCE);
+        NeoForge.EVENT_BUS.register(new ForgeClientHooks());
     }
 }
